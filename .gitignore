@@ -1,0 +1,5 @@
+.atom
+.packages
+packages
+out.js*
+pubspec.lock
