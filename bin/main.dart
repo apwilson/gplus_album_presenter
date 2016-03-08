@@ -91,35 +91,38 @@ class Header {
   final String title;
   final String backText;
   final Element _header = new Element.div();
-  final Element _title = new Element.p();
-  final Element _backButton = new Element.p();
+  final Element _title = new HeadingElement.h2();
+  final Element _backButton = new HeadingElement.h3();
 
   Header({this.title, this.backText, this.onBack}) {
     _title.text = title;
 
     _backButton.text = backText;
-    _backButton.onClick.listen((_) => onBack(_));
+    _backButton.style.cursor = 'pointer';
+    _backButton.onClick.listen((_) => onBack?.call(_));
 
     _header.style.top = '0';
     _header.style.left = '0';
     _header.style.margin = '4px';
-    if (backText != null && onBack != null) {
-      _header.children.add(_backButton);
-    }
+    _header.style.display = 'flex';
+    _header.style.justifyContent = 'space-between';
     _header.children.add(_title);
+    _header.children.add(_backButton);
   }
 
   Element get element => _header;
 
   void attach() {
     querySelector('#gallery').children.add(element);
-    fadeIn(element);
+    fadeIn(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT);
   }
 
   void detach() {
-    fadeOut(element).onComplete.listen((_) {
+    fadeOut(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT)
+        .onComplete
+        .listen((_) {
       querySelector('#gallery').children.remove(element);
-    }); //, {duration: 500, Easing easing});
+    });
   }
 }
 
@@ -132,7 +135,7 @@ class AlbumPhotos {
 
     _albumPhotos.children.add(new Header(
         title: parsedJson['feed']['title']['\$t'],
-        backText: "⇱ Back to Albums", onBack: (_) {
+        backText: "← Back to Albums", onBack: (_) {
       detach();
     }).element);
 
