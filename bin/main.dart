@@ -1,7 +1,8 @@
 /// Author: luthien256@gmail.com
 
-import 'dart:convert';
-import 'dart:html';
+import 'dart:convert' as convert;
+import 'dart:html' as html;
+import 'dart:math' as math;
 import 'package:animation/animation.dart';
 import 'package:animation/effect.dart';
 
@@ -14,44 +15,28 @@ typedef void OnAlbumSelected(String albumId);
 void main() {
   //document.onReadyStateChange.listen((_) {
   //if (document.readyState == "complete") {
-  _loadGooglePlusAlbumList();
+  AlbumEntryPoints.load(googlePlusUserId: kGooglePlusUserId);
   //}
   //});
 }
 
-String createGooglePlusAlbumListUrl({String googlePlusUserId}) =>
-    "https://picasaweb.google.com/data/feed/api/user/" +
-    googlePlusUserId +
-    "?alt=json";
-
-String createGooglePlusPhotoListUrl(
-        {String googlePlusUserId, String googlePlusAlbumId}) =>
-    "https://picasaweb.google.com/data/feed/api/user/" +
-    googlePlusUserId +
-    "/albumid/" +
-    googlePlusAlbumId +
-    "?alt=json";
-
-void _loadGooglePlusAlbumList() {
-  HttpRequest
-      .getString(
-          createGooglePlusAlbumListUrl(googlePlusUserId: kGooglePlusUserId))
-      .then((String response) => new AlbumEntryPoints(response).attach());
-}
-
-void _loadAlbumPhotos(String albumId, AlbumEntryPoints albumEntryPoints) {
-  HttpRequest
-      .getString(createGooglePlusPhotoListUrl(
-          googlePlusUserId: kGooglePlusUserId, googlePlusAlbumId: albumId))
-      .then((String response) =>
-          new AlbumPhotos(response, () => albumEntryPoints.attach()).attach());
-}
-
 class AlbumEntryPoints {
-  final _albumEntryPoints = new Element.div();
+  static String createGooglePlusAlbumListUrl({String googlePlusUserId}) =>
+      "https://picasaweb.google.com/data/feed/api/user/" +
+      googlePlusUserId +
+      "?alt=json";
+
+  static load({googlePlusUserId}) {
+    html.HttpRequest
+        .getString(
+            createGooglePlusAlbumListUrl(googlePlusUserId: googlePlusUserId))
+        .then((String response) => new AlbumEntryPoints(response).attach());
+  }
+
+  final _albumEntryPoints = new html.Element.div();
 
   AlbumEntryPoints(String json) {
-    Map parsedJson = JSON.decode(json);
+    Map parsedJson = convert.JSON.decode(json);
 
     _albumEntryPoints.children.add(new Header(title: "Albums").element);
 
@@ -63,15 +48,16 @@ class AlbumEntryPoints {
                 title: entry['title']['\$t'], listener: (_) {
               detach();
               // TODO: Load album photos in background then attach!
-              _loadAlbumPhotos(entry['gphoto\$id']['\$t'], this);
+              AlbumPhotos.load(
+                  albumId: entry['gphoto\$id']['\$t'], albumEntryPoints: this);
             }).element)
         .toList());
   }
 
-  Element get element => _albumEntryPoints;
+  html.Element get element => _albumEntryPoints;
 
   void attach() {
-    querySelector('#gallery').children.add(_albumEntryPoints);
+    html.querySelector('#gallery').children.add(_albumEntryPoints);
     fadeIn(_albumEntryPoints,
         duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT);
   }
@@ -81,18 +67,41 @@ class AlbumEntryPoints {
             duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT)
         .onComplete
         .listen((_) {
-      querySelector('#gallery').children.remove(_albumEntryPoints);
+      html.querySelector('#gallery').children.remove(_albumEntryPoints);
     }); //, {duration: 500, Easing easing});
   }
 }
 
-class Header {
-  final EventListener onBack;
+abstract class HtmlWidget {
+  final Function onDetached;
+
+  HtmlWidget({this.onDetached});
+
+  html.Element get element;
+  html.Element get attachPoint => html.querySelector('#gallery');
+
+  void attach() {
+    attachPoint.children.add(element);
+    fadeIn(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT);
+  }
+
+  void detach() {
+    fadeOut(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT)
+        .onComplete
+        .listen((_) {
+      attachPoint.children.remove(element);
+      onDetached?.call();
+    });
+  }
+}
+
+class Header extends HtmlWidget {
+  final html.EventListener onBack;
   final String title;
   final String backText;
-  final Element _header = new Element.div();
-  final Element _title = new HeadingElement.h2();
-  final Element _backButton = new HeadingElement.h3();
+  final html.Element _header = new html.Element.div();
+  final html.Element _title = new html.HeadingElement.h2();
+  final html.Element _backButton = new html.HeadingElement.h3();
 
   Header({this.title, this.backText, this.onBack}) {
     _title.text = title;
@@ -110,28 +119,33 @@ class Header {
     _header.children.add(_backButton);
   }
 
-  Element get element => _header;
-
-  void attach() {
-    querySelector('#gallery').children.add(element);
-    fadeIn(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT);
-  }
-
-  void detach() {
-    fadeOut(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT)
-        .onComplete
-        .listen((_) {
-      querySelector('#gallery').children.remove(element);
-    });
-  }
+  @override
+  html.Element get element => _header;
 }
 
-class AlbumPhotos {
-  final Element _albumPhotos = new Element.div();
-  final Function onDetached;
+class AlbumPhotos extends HtmlWidget {
+  static String createGooglePlusPhotoListUrl(
+          {String googlePlusUserId, String googlePlusAlbumId}) =>
+      "https://picasaweb.google.com/data/feed/api/user/" +
+      googlePlusUserId +
+      "/albumid/" +
+      googlePlusAlbumId +
+      "?alt=json";
 
-  AlbumPhotos(String json, this.onDetached) {
-    Map parsedJson = JSON.decode(json);
+  static load({String albumId, AlbumEntryPoints albumEntryPoints}) {
+    html.HttpRequest
+        .getString(createGooglePlusPhotoListUrl(
+            googlePlusUserId: kGooglePlusUserId, googlePlusAlbumId: albumId))
+        .then((String response) =>
+            new AlbumPhotos(response, () => albumEntryPoints.attach())
+                .attach());
+  }
+
+  final html.Element _albumPhotos = new html.Element.div();
+
+  AlbumPhotos(String json, Function onDetached)
+      : super(onDetached: onDetached) {
+    Map parsedJson = convert.JSON.decode(json);
 
     _albumPhotos.children.add(new Header(
         title: parsedJson['feed']['title']['\$t'],
@@ -146,33 +160,23 @@ class AlbumPhotos {
         .toList());
   }
 
-  Element get element => _albumPhotos;
-
-  void attach() {
-    querySelector('#gallery').children.add(element);
-    fadeIn(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT);
-  }
-
-  void detach() {
-    fadeOut(element, duration: 175, easing: Easing.QUADRATIC_EASY_IN_OUT)
-        .onComplete
-        .listen((_) {
-      querySelector('#gallery').children.remove(element);
-      onDetached();
-    });
-  }
+  @override
+  html.Element get element => _albumPhotos;
 }
 
 class Photo {
-  final Element _img = new Element.img();
-  final Element _span = new Element.span();
-  final Element _div = new Element.div();
+  final html.Element _img = new html.Element.img();
+  final html.Element _span = new html.Element.span();
+  final html.Element _div = new html.Element.div();
 
-  Photo({String src, String title, EventListener listener}) {
+  Photo({String src, String title, html.EventListener listener}) {
     int fileNameIndex = src.lastIndexOf("/");
     String srcPrefix = src.substring(0, fileNameIndex);
     String srcSuffix = src.substring(fileNameIndex + 1);
-    String photoUrl = "$srcPrefix/s1280/$srcSuffix";
+    int imageSize =
+        (math.max(html.window.innerHeight, html.window.innerWidth) * 0.95)
+            .round();
+    String photoUrl = "$srcPrefix/s$imageSize/$srcSuffix";
     String thumbnailUrl = "$srcPrefix/s$kGalleryImageDivWidth/$srcSuffix";
 
     _img.attributes['src'] = thumbnailUrl;
@@ -202,11 +206,11 @@ class Photo {
         });
   }
 
-  Element get element => _div;
+  html.Element get element => _div;
 }
 
 class AlbumEntryPoint extends Photo {
-  AlbumEntryPoint({String src, String title, EventListener listener})
+  AlbumEntryPoint({String src, String title, html.EventListener listener})
       : super(src: src, title: title, listener: listener) {
     _img.style.width = '202px';
     _img.attributes['src'] = src;
@@ -221,9 +225,9 @@ class AlbumPhoto extends Photo {
 }
 
 class Overlay {
-  final Element _overlay = new Element.div();
-  final Element _img = new Element.img();
-  final Element _span = new Element.span();
+  final html.Element _overlay = new html.Element.div();
+  final html.Element _img = new html.Element.img();
+  final html.Element _span = new html.Element.span();
 
   Overlay(String photoUrl) {
     _span.attributes['class'] = 'helper';
@@ -257,7 +261,7 @@ class Overlay {
   }
 
   void attach() {
-    querySelector('body').children.add(_overlay);
+    html.querySelector('body').children.add(_overlay);
     fadeIn(_overlay, duration: 350, easing: Easing.QUADRATIC_EASY_IN_OUT);
     fadeIn(_img, duration: 350, easing: Easing.QUADRATIC_EASY_IN_OUT);
   }
@@ -267,7 +271,7 @@ class Overlay {
     fadeOut(_overlay, duration: 350, easing: Easing.QUADRATIC_EASY_IN_OUT)
         .onComplete
         .listen((_) {
-      querySelector('body').children.remove(_overlay);
+      html.querySelector('body').children.remove(_overlay);
     });
   }
 }
