@@ -1,5 +1,4 @@
 name: gplus_album_presenter
 description: Presents the public albums of a gplus user.
 dependencies:
-  animation: 0.5.24
   http: any #^0.11.3
