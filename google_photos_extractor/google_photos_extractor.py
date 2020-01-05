@@ -6,6 +6,7 @@ import multiprocessing
 
 # put newest album first
 albums = [
+    'https://photos.app.goo.gl/965D13j5LUN1y1Su9',
     'https://photos.app.goo.gl/gUC1XnCXusBvgMMC7',
     'https://goo.gl/photos/mHWconethbgYw2qs9',
     'https://photos.app.goo.gl/FMxB9QATBTqng4eU8',
